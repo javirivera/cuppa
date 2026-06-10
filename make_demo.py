@@ -10,7 +10,11 @@ from PIL import Image, ImageDraw, ImageFont
 
 from cuppa import SPRITE
 
-P = 14          # pixel block size
+# Terminal half-block pixels are ~2 columns wide but only ~half a line tall, so
+# they're wider than tall. Match that here (PIX_W > PIX_H) or the cup looks
+# vertically stretched compared to how it renders in the terminal.
+PIX_W = 16
+PIX_H = 9
 STEAM_ROWS = 3
 BG = (26, 26, 26)
 COLORS = {"L": (68, 68, 68), "W": (255, 255, 255), "S": (175, 135, 95)}
@@ -34,10 +38,10 @@ GRID_W = len(SPRITE[0])
 GRID_H = len(SPRITE)
 SIDE, TOP, GAP, TEXT_H, BOT = 28, 14, 16, 30, 18
 # Width fits whichever is wider — the cup or the status line.
-W = int(max(GRID_W * P, STATUS_W)) + 2 * SIDE
-H = TOP + STEAM_ROWS * P + GRID_H * P + GAP + TEXT_H + BOT
-CUP_X = (W - GRID_W * P) // 2
-CUP_Y = TOP + STEAM_ROWS * P
+W = int(max(GRID_W * PIX_W, STATUS_W)) + 2 * SIDE
+H = TOP + STEAM_ROWS * PIX_H + GRID_H * PIX_H + GAP + TEXT_H + BOT
+CUP_X = (W - GRID_W * PIX_W) // 2
+CUP_Y = TOP + STEAM_ROWS * PIX_H
 
 
 def frame(i):
@@ -46,27 +50,28 @@ def frame(i):
 
     # Steam: two wisps that wiggle left/right as they rise.
     for left in (True, False):
-        base_x = CUP_X + (int(GRID_W * 0.36) if left else int(GRID_W * 0.62)) * P
+        col = int(GRID_W * 0.36) if left else int(GRID_W * 0.62)
+        base_x = CUP_X + col * PIX_W
         for row in range(STEAM_ROWS):
             dx = (-3 if (i + row) % 2 else 3) + (-1 if left else 1) * 2
             x = base_x + dx
-            y = TOP + row * P
-            d.rectangle([x, y, x + P - 5, y + P - 5], fill=STEAM_SHADES[row])
+            y = TOP + row * PIX_H
+            d.rectangle([x, y, x + PIX_W - 6, y + PIX_H - 2], fill=STEAM_SHADES[row])
 
-    # Cup: one square per sprite pixel.
+    # Cup: one block per sprite pixel (wider than tall, matching the terminal).
     for r, line in enumerate(SPRITE):
         for c, ch in enumerate(line):
             if ch == ".":
                 continue
-            x, y = CUP_X + c * P, CUP_Y + r * P
-            d.rectangle([x, y, x + P - 1, y + P - 1], fill=COLORS[ch])
+            x, y = CUP_X + c * PIX_W, CUP_Y + r * PIX_H
+            d.rectangle([x, y, x + PIX_W - 1, y + PIX_H - 1], fill=COLORS[ch])
 
     # Status line, ticking up a few seconds.
     secs = i // 2
     head, tail = "caffeinated", f"  •  awake for 0:00:0{secs}"
     total = d.textlength(head, font=FONT) + d.textlength(tail, font=FONT)
     tx = (W - total) // 2
-    ty = CUP_Y + GRID_H * P + GAP
+    ty = CUP_Y + GRID_H * PIX_H + GAP
     d.text((tx, ty), head, font=FONT, fill=TAN)
     d.text((tx + d.textlength(head, font=FONT), ty), tail, font=FONT, fill=GREY)
     return img
