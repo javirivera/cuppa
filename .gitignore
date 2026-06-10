@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# Experimental Textual UI — not part of the shipped tool.
+cuppa_tui.py
