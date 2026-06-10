@@ -7,6 +7,8 @@ while it does, a tiny pixel-art cup steams away in the terminal with a live
 "awake for HH:MM:SS" timer. Press `Ctrl+C` and it cleanly stops `caffeinate`
 so your Mac can sleep again.
 
+![cuppa demo](docs/demo.gif)
+
 ## Requirements
 
 - **macOS** (uses the built-in `caffeinate`).
@@ -61,3 +63,9 @@ rm -f /usr/local/bin/cuppa
 - An experimental [Textual](https://textual.textualize.io/) UI version exists
   locally (`cuppa_tui.py`) but is intentionally **not** shipped — `cuppa` is a
   single zero-dependency file on purpose.
+- The demo GIF is generated from the live sprite by `make_demo.py`
+  (`pip install Pillow` first). Regenerate with `python3 make_demo.py`.
+
+## License
+
+[MIT](LICENSE) © 2026 Javier Rivera
