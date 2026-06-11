@@ -30,21 +30,21 @@ DIM = "\033[2m"
 RESET = "\033[0m"
 MARGIN = " "  # small left indent so the sprite isn't flush to the edge
 
-# 256-colour palette.
+# 256-colour palette (shared codes).
 WHITE = 231    # white paper cup body
 LID = 238      # dark plastic lid
 SLEEVE = 137   # kraft cardboard sleeve
-CREMA = 180    # warm-tan accent (status line)
+CREMA = 180    # warm-tan accent (status line; also imported by cuppa_tui)
 EYE = 16       # near-black eyes
 STEAM_C = 250  # light-grey steam
 
-# Pixel sprite of a tall paper to-go cup: a domed lid (flush with the body, no
-# overhang), a mostly-straight white body that only narrows at the very base,
-# and a kraft sleeve band. Each char is one pixel; rows are drawn two-at-a-time
-# with half-block glyphs (see sprite_lines) so cells fill fully and there are
-# no horizontal seams. An even row count keeps the pairing clean. Legend:
-#   . transparent   L lid   W cup   S sleeve
-SPRITE = [
+# --- "paper": a tall paper to-go cup ---------------------------------------
+# A domed lid (flush with the body, no overhang), a mostly-straight white body
+# that narrows only at the very base, and a kraft sleeve band. Each char is one
+# pixel; rows are drawn two-at-a-time with half-block glyphs (see sprite_lines)
+# so cells fill fully and there are no horizontal seams. An even row count keeps
+# the pairing clean. Legend:  . transparent  L lid  W cup  S sleeve
+PAPER_SPRITE = [
     "..LLL..",
     ".LLLLL.",
     ".WWWWW.",
@@ -60,7 +60,33 @@ SPRITE = [
     "..WWW..",
     "..WWW..",
 ]
-PIXELS = {"L": LID, "W": WHITE, "S": SLEEVE}
+PAPER_PIXELS = {"L": LID, "W": WHITE, "S": SLEEVE}
+
+# --- "mug": a glass espresso cup of coffee, with a handle -------------------
+# Pale-blue glass walls (H highlight / G main / B shadow / D dark), shaded
+# coffee (m crema, l light, c main, k dark), and a C-handle on the right.
+MUG_SPRITE = [
+    "...HHHHHHH........",
+    ".HHGGGGGGGHH......",
+    "HGmmmmmmmmmGH.....",
+    "HGlllllllllGHBB...",
+    "HGcccccccccGH..B..",
+    "HGcccccccccGH..B..",
+    "HGckkkkkkkcGHBB...",
+    "HGkkkkkkkkkGH.....",
+    ".BGGGGGGGGGB......",
+    ".DBGGGGGGGBD......",
+    "..DHHHHHHHD.......",
+    "...DDDDDDD........",
+]
+MUG_PIXELS = {"H": 195, "G": 152, "B": 110, "D": 67,
+              "m": 137, "l": 130, "c": 94, "k": 52}
+
+# Active style — rebound by set_style(); defaults to paper. (cuppa_tui imports
+# the paper-cup SPRITE/PIXELS directly, so these stay the paper defaults.)
+SPRITE = PAPER_SPRITE
+PIXELS = PAPER_PIXELS
+ACCENT = CREMA
 
 
 def _pixel_color(ch, blink):
@@ -102,15 +128,16 @@ def sprite_lines(blink):
     return lines
 
 
-# Steam wisps shimmer up over the bowl, across the 14-cell-wide sprite.
-def _steam_line(marks):
-    cells = [" "] * 14
+# Steam wisps shimmer up over the bowl. Width = sprite width × 2 cells.
+def _steam_line(marks, width=14, color=STEAM_C):
+    cells = [" "] * width
     for col, glyph in marks.items():
         cells[col] = glyph
-    return MARGIN + f"\033[38;5;{STEAM_C}m" + "".join(cells) + RESET
+    return MARGIN + f"\033[38;5;{color}m" + "".join(cells) + RESET
 
 
-STEAM_FRAMES = [
+# Paper cup: two grey wisps over the narrow body.
+PAPER_STEAM = [
     [_steam_line({5: "░", 8: "▒"}), _steam_line({6: "▒", 7: "░"}),
      _steam_line({5: "▒", 8: "░"})],
     [_steam_line({6: "▒", 7: "░"}), _steam_line({5: "░", 8: "▒"}),
@@ -118,6 +145,34 @@ STEAM_FRAMES = [
     [_steam_line({5: "▒", 8: "░"}), _steam_line({6: "░", 7: "▒"}),
      _steam_line({5: "░", 8: "▒"})],
 ]
+
+# Mug: three tan wisps over the wider bowl (36 cells = 18-px sprite × 2).
+_MS = lambda m: _steam_line(m, 36, 137)
+MUG_STEAM = [
+    [_MS({8: "░", 13: "▒", 18: "░"}), _MS({9: "▒", 13: "░", 17: "▒"}),
+     _MS({8: "▒", 14: "░", 18: "▒"})],
+    [_MS({9: "▒", 13: "░", 17: "▒"}), _MS({8: "░", 14: "▒", 18: "░"}),
+     _MS({9: "░", 13: "▒", 18: "░"})],
+    [_MS({8: "▒", 14: "░", 18: "▒"}), _MS({9: "░", 13: "▒", 17: "░"}),
+     _MS({8: "░", 13: "▒", 18: "▒"})],
+]
+
+STEAM_FRAMES = PAPER_STEAM  # active; rebound by set_style()
+
+STYLES = {
+    "paper": {"sprite": PAPER_SPRITE, "pixels": PAPER_PIXELS,
+              "steam": PAPER_STEAM, "accent": CREMA},
+    "mug":   {"sprite": MUG_SPRITE, "pixels": MUG_PIXELS,
+              "steam": MUG_STEAM, "accent": 137},
+}
+
+
+def set_style(name):
+    """Point the active-style globals at the chosen style."""
+    global SPRITE, PIXELS, STEAM_FRAMES, ACCENT
+    style = STYLES[name]
+    SPRITE, PIXELS = style["sprite"], style["pixels"]
+    STEAM_FRAMES, ACCENT = style["steam"], style["accent"]
 
 
 def cup(steam_frame, blink):
@@ -144,6 +199,10 @@ def main():
         "--version", action="version", version=f"cuppa {__version__}",
     )
     parser.add_argument(
+        "--style", choices=sorted(STYLES), default="paper",
+        help="Cup design: paper to-go cup or glass espresso mug (default: paper).",
+    )
+    parser.add_argument(
         "-t", "--timeout", type=int, default=None,
         help="Seconds to stay awake before quitting (default: until Ctrl+C).",
     )
@@ -155,6 +214,8 @@ def main():
 
     if shutil.which("caffeinate") is None:
         sys.exit("error: `caffeinate` not found — this script is macOS-only.")
+
+    set_style(args.style)
 
     # Build the caffeinate command. Default to idle-sleep prevention (-i); the
     # display may still sleep. -t makes caffeinate self-terminate after timeout.
@@ -179,7 +240,7 @@ def main():
             mins, secs = divmod(elapsed, 60)
             hours, mins = divmod(mins, 60)
             awake = f"{hours:d}:{mins:02d}:{secs:02d}"
-            status = f"\033[38;5;{CREMA}mcaffeinated{RESET}  •  awake for {awake}"
+            status = f"\033[38;5;{ACCENT}mcaffeinated{RESET}  •  awake for {awake}"
             if args.timeout:
                 status += f"  •  {max(0, args.timeout - elapsed)}s left"
             render(cup(next(steam), blink), status)

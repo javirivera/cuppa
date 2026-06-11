@@ -42,10 +42,13 @@ curl -fsSL https://raw.githubusercontent.com/javirivera/cuppa/main/install.sh | 
 
 ```bash
 cuppa                 # stay awake until you press Ctrl+C
+cuppa --style mug     # glass espresso cup instead of the paper to-go cup
 cuppa -t 3600         # stay awake for 1 hour, then quit
 cuppa -- -d -s        # pass extra flags straight to caffeinate (e.g. -d display, -s on AC)
 cuppa --version
 ```
+
+Two cup designs are available via `--style`: `paper` (default) and `mug`.
 
 By default `cuppa` prevents **idle** sleep (`caffeinate -i`); the display may
 still turn off. Anything after `--` is passed through to `caffeinate`.
