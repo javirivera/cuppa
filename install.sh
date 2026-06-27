@@ -36,11 +36,25 @@ if ! command -v python3 >/dev/null 2>&1; then
   echo "   or Homebrew Python (brew install python) to run cuppa."
 fi
 
-# Warn if the chosen bin dir isn't on PATH.
+# If the chosen bin dir isn't on PATH, persist it to the user's shell profile
+# instead of just warning (a warning is easy to miss/skip, and the install
+# would otherwise need to be repeated every time a new shell is opened).
 case ":$PATH:" in
   *":$BIN:"*) : ;;
-  *) echo "⚠  $BIN is not on your PATH. Add this to your shell profile:"
-     echo "     export PATH=\"$BIN:\$PATH\"" ;;
+  *)
+    case "${SHELL:-}" in
+      */zsh) PROFILE="$HOME/.zshrc" ;;
+      */bash) PROFILE="$HOME/.bash_profile" ;;
+      *) PROFILE="$HOME/.profile" ;;
+    esac
+    LINE="export PATH=\"$BIN:\$PATH\" # Added by cuppa installer"
+    touch "$PROFILE"
+    if ! grep -qxF "$LINE" "$PROFILE"; then
+      printf '\n%s\n' "$LINE" >> "$PROFILE"
+      echo "✓ Added $BIN to PATH in $PROFILE"
+    fi
+    echo "  Restart your terminal (or run: source $PROFILE) for this to take effect."
+    ;;
 esac
 
 echo "Run it with:  cuppa"
