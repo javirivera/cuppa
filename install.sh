@@ -36,11 +36,35 @@ if ! command -v python3 >/dev/null 2>&1; then
   echo "   or Homebrew Python (brew install python) to run cuppa."
 fi
 
-# Warn if the chosen bin dir isn't on PATH.
+# If the chosen bin dir isn't on PATH, persist it to the user's shell profile
+# instead of just warning (a warning is easy to miss/skip, and the install
+# would otherwise need to be repeated every time a new shell is opened).
 case ":$PATH:" in
   *":$BIN:"*) : ;;
-  *) echo "⚠  $BIN is not on your PATH. Add this to your shell profile:"
-     echo "     export PATH=\"$BIN:\$PATH\"" ;;
+  *)
+    # bash reads ~/.bashrc for non-login interactive shells (the default in
+    # most Linux terminals, tmux/screen panes) and ~/.bash_profile for login
+    # shells — write to both so either kind of new shell picks it up.
+    case "${SHELL:-}" in
+      */zsh) PROFILES="$HOME/.zshrc" ;;
+      */bash) PROFILES="$HOME/.bashrc $HOME/.bash_profile" ;;
+      */fish) PROFILES="$HOME/.config/fish/config.fish" ;;
+      *) PROFILES="$HOME/.profile" ;;
+    esac
+    for PROFILE in $PROFILES; do
+      mkdir -p "$(dirname "$PROFILE")"
+      touch "$PROFILE"
+      case "$PROFILE" in
+        */config.fish) LINE="set -gx PATH \"$BIN\" \$PATH # Added by cuppa installer" ;;
+        *) LINE="export PATH=\"$BIN:\$PATH\" # Added by cuppa installer" ;;
+      esac
+      if ! grep -qxF "$LINE" "$PROFILE"; then
+        printf '\n%s\n' "$LINE" >> "$PROFILE"
+        echo "✓ Added $BIN to PATH in $PROFILE"
+      fi
+    done
+    echo "  Restart your terminal (or open a new shell) for this to take effect."
+    ;;
 esac
 
 echo "Run it with:  cuppa"
