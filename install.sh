@@ -42,18 +42,28 @@ fi
 case ":$PATH:" in
   *":$BIN:"*) : ;;
   *)
+    # bash reads ~/.bashrc for non-login interactive shells (the default in
+    # most Linux terminals, tmux/screen panes) and ~/.bash_profile for login
+    # shells — write to both so either kind of new shell picks it up.
     case "${SHELL:-}" in
-      */zsh) PROFILE="$HOME/.zshrc" ;;
-      */bash) PROFILE="$HOME/.bash_profile" ;;
-      *) PROFILE="$HOME/.profile" ;;
+      */zsh) PROFILES="$HOME/.zshrc" ;;
+      */bash) PROFILES="$HOME/.bashrc $HOME/.bash_profile" ;;
+      */fish) PROFILES="$HOME/.config/fish/config.fish" ;;
+      *) PROFILES="$HOME/.profile" ;;
     esac
-    LINE="export PATH=\"$BIN:\$PATH\" # Added by cuppa installer"
-    touch "$PROFILE"
-    if ! grep -qxF "$LINE" "$PROFILE"; then
-      printf '\n%s\n' "$LINE" >> "$PROFILE"
-      echo "✓ Added $BIN to PATH in $PROFILE"
-    fi
-    echo "  Restart your terminal (or run: source $PROFILE) for this to take effect."
+    for PROFILE in $PROFILES; do
+      mkdir -p "$(dirname "$PROFILE")"
+      touch "$PROFILE"
+      case "$PROFILE" in
+        */config.fish) LINE="set -gx PATH \"$BIN\" \$PATH # Added by cuppa installer" ;;
+        *) LINE="export PATH=\"$BIN:\$PATH\" # Added by cuppa installer" ;;
+      esac
+      if ! grep -qxF "$LINE" "$PROFILE"; then
+        printf '\n%s\n' "$LINE" >> "$PROFILE"
+        echo "✓ Added $BIN to PATH in $PROFILE"
+      fi
+    done
+    echo "  Restart your terminal (or open a new shell) for this to take effect."
     ;;
 esac
 
