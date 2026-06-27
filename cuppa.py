@@ -20,7 +20,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 # ANSI helpers --------------------------------------------------------------
 HIDE_CURSOR = "\033[?25l"
