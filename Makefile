@@ -1,7 +1,7 @@
 PREFIX ?= /usr/local
 BINDIR  = $(PREFIX)/bin
 
-.PHONY: install uninstall
+.PHONY: install uninstall test
 
 install:
 	install -d "$(BINDIR)"
@@ -11,3 +11,6 @@ install:
 uninstall:
 	rm -f "$(BINDIR)/cuppa"
 	@echo "✓ Removed $(BINDIR)/cuppa"
+
+test:
+	python3 -m unittest discover -s . -p "test_*.py"

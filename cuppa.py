@@ -18,14 +18,28 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 
 __version__ = "1.0.1"
 
+# Set by _on_resize (SIGWINCH) so the next frame does a full clear. Without an
+# alternate screen buffer, enlarging the terminal window can reveal rows that
+# scrolled into history while it was smaller — rows still holding a stale
+# earlier frame that per-line erase never touches. One full clear right after
+# a resize wipes it.
+resize_event = threading.Event()
+
+
+def _on_resize(signum, frame):
+    resize_event.set()
+
 # ANSI helpers --------------------------------------------------------------
 HIDE_CURSOR = "\033[?25l"
 SHOW_CURSOR = "\033[?25h"
-CLEAR = "\033[2J\033[H"
+CLEAR_SCREEN = "\033[2J\033[H"  # full clear — used once at startup only
+HOME = "\033[H"                # per-frame cursor reset (no full clear)
+CLEAR_EOL = "\033[K"            # erase-to-end-of-line, wipes stale trailing chars
 DIM = "\033[2m"
 RESET = "\033[0m"
 MARGIN = " "  # small left indent so the sprite isn't flush to the edge
@@ -125,13 +139,33 @@ def cup(steam_frame, blink):
     return list(steam_frame) + sprite_lines(blink)
 
 
+def frame_output(frame_lines, status, force_clear=False):
+    """Build one frame: cursor-home, then every line erased to EOL as it's
+    rewritten. No full-screen clear here every frame — that's what caused the
+    terminal's output queue to back up (and Ctrl+C to lag) at 4 frames/second.
+    Erasing each line individually also wipes stale trailing characters, which
+    matters for the status line: the `-t` countdown shrinks over time
+    (`100s left` -> `9s left`), so without erase-to-EOL a leftover digit would
+    linger. The leading blank line matches the original layout (row 1 stays
+    empty; the cup starts on row 2).
+
+    force_clear does one full CLEAR_SCREEN before drawing — used right after a
+    terminal resize (see _on_resize) to wipe rows revealed from history.
+    """
+    lines = [""] + list(frame_lines) + [
+        "",
+        f"{DIM}{status}{RESET}",
+        f"{DIM}Ctrl+C to let your Mac sleep again.{RESET}",
+    ]
+    prefix = CLEAR_SCREEN if force_clear else ""
+    return prefix + HOME + "".join(line + CLEAR_EOL + "\n" for line in lines)
+
+
 def render(frame_lines, status):
-    out = [CLEAR]
-    out.extend(frame_lines)
-    out.append("")
-    out.append(f"{DIM}{status}{RESET}")
-    out.append(f"{DIM}Ctrl+C to let your Mac sleep again.{RESET}")
-    sys.stdout.write("\n".join(out) + "\n")
+    force_clear = resize_event.is_set()
+    if force_clear:
+        resize_event.clear()
+    sys.stdout.write(frame_output(frame_lines, status, force_clear))
     sys.stdout.flush()
 
 
@@ -169,7 +203,8 @@ def main():
     proc = subprocess.Popen(cmd)
     start = time.monotonic()
 
-    sys.stdout.write(HIDE_CURSOR)
+    signal.signal(signal.SIGWINCH, _on_resize)
+    sys.stdout.write(HIDE_CURSOR + CLEAR_SCREEN)
     try:
         steam = itertools.cycle(STEAM_FRAMES)
         tick = 0
