@@ -21,7 +21,7 @@ import sys
 import threading
 import time
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 
 # Set by _on_resize (SIGWINCH) so the next frame does a full clear. Without an
 # alternate screen buffer, enlarging the terminal window can reveal rows that
