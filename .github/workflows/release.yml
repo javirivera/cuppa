@@ -1,0 +1,69 @@
+name: Release
+
+# Auto-ships a release whenever cuppa.py's __version__ lands on main without a
+# matching GitHub release yet. Merge a PR that bumps the version and this cuts
+# the tagged release (with packaged assets) automatically. Idempotent: pushes
+# whose version already has a release are skipped. Can also be run manually.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Read version from cuppa.py
+        id: ver
+        run: |
+          v=$(python3 -c "import re; print(re.search(r'__version__\s*=\s*\"([^\"]+)\"', open('cuppa.py').read()).group(1))")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $v"
+
+      - name: Check whether this release already exists
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v${{ steps.ver.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release v${{ steps.ver.outputs.version }} already exists — nothing to ship."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run tests
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          if ls test_*.py >/dev/null 2>&1; then
+            python3 -m unittest discover -s . -p "test_*.py" -v
+          else
+            echo "No test files found; skipping."
+          fi
+
+      - name: Build package tarball
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          v="${{ steps.ver.outputs.version }}"
+          tar -czf "cuppa-$v.tar.gz" cuppa.py install.sh Makefile README.md LICENSE
+          echo "Built cuppa-$v.tar.gz"
+
+      - name: Create GitHub release
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${{ steps.ver.outputs.version }}"
+          gh release create "v$v" \
+            --title "cuppa v$v" \
+            --generate-notes \
+            cuppa.py "cuppa-$v.tar.gz"
+          echo "Shipped release v$v"
